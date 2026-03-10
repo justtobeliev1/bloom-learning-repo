@@ -13,6 +13,12 @@
 - [ ] 1.1 (to be filled by AI)
 - [ ] 1.2 (to be filled by AI)
 
+## Mastery Snapshot
+
+<!-- BLOOM:MASTERY_SNAPSHOT:START -->
+- [ ] No concepts tracked yet
+<!-- BLOOM:MASTERY_SNAPSHOT:END -->
+
 ## Dependencies
 
 > AI will map prerequisite relationships between concepts.

@@ -38,7 +38,7 @@ The core insight: items you remember well get reviewed less frequently; items yo
 
 ### Mastery Threshold
 
-When a concept's interval exceeds **30 days**, move it from "Due for Review" to "Mastered" in the spaced-repetition.md file. Mastered items are still tracked but reviewed less frequently.
+When a concept's interval exceeds **30 days**, move it from "Due for Review" to "Mastered" in `_meta/state.json`, then regenerate `spaced-repetition.md`. Mastered items are still tracked but reviewed less frequently.
 
 ## Examples
 
@@ -83,7 +83,7 @@ Notice ease drops quickly with repeated failures, making future intervals grow m
 
 ## Integration with review-check.py
 
-The `scripts/review-check.py` script automates this algorithm:
+The `scripts/review-check.py` script automates this algorithm and keeps `_meta/state.json` in sync:
 
 ```bash
 # Check what's due today
@@ -95,6 +95,9 @@ python3 scripts/review-check.py ./_meta/spaced-repetition.md \
 
 # Check with a specific date (for testing)
 python3 scripts/review-check.py ./_meta/spaced-repetition.md --date 2025-03-20
+
+# Rebuild the rendered markdown from state.json
+python3 scripts/review-check.py ./_meta/spaced-repetition.md --sync
 ```
 
-The script reads the Markdown table, applies the SM-2 rules, and writes updated intervals back to the file.
+The script treats `_meta/state.json` as the source of truth, applies the SM-2 rules there, and writes the rendered schedule back to `spaced-repetition.md`.

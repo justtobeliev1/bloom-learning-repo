@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "topic": "{{TOPIC}}",
+  "created_at": "{{DATE}}",
+  "updated_at": "{{DATE}}",
+  "learner": {
+    "level": "{{LEVEL}}",
+    "language": "auto",
+    "pace": "adaptive",
+    "preferences": []
+  },
+  "current": {
+    "module": "Module 1",
+    "concept": "1.1"
+  },
+  "concepts": {},
+  "reviews": {
+    "due": [],
+    "mastered": []
+  },
+  "sessions": []
+}

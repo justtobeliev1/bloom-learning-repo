@@ -10,8 +10,10 @@ Personalized AI tutoring system combining Bloom's 2 Sigma one-on-one tutoring wi
 ## Resources
 
 - **`scripts/init-vault.sh`** — Initialize vault structure for a new topic. Run: `bash scripts/init-vault.sh <vault-path> <topic> [level]`
-- **`scripts/review-check.py`** — Check due spaced repetition items and update intervals. Run: `python3 scripts/review-check.py <path-to-spaced-repetition.md>`
-- **`assets/templates/`** — Template files (progress.md, knowledge-map.md, spaced-repetition.md) used by init-vault.sh. Placeholders: `{{TOPIC}}`, `{{DATE}}`, `{{LEVEL}}`
+- **`scripts/review-check.py`** — Check due spaced repetition items, update intervals, and sync `_meta/state.json`. Run: `python3 scripts/review-check.py <path-to-spaced-repetition.md>`
+- **`scripts/session-commit.py`** — Persist a session across `progress.md`, `knowledge-map.md`, `spaced-repetition.md`, `notes/`, and `_meta/state.json`
+- **`scripts/learning_state.py`** — Shared state helpers used by the review and session scripts
+- **`assets/templates/`** — Template files (progress.md, knowledge-map.md, spaced-repetition.md, state.json) used by init-vault.sh. Placeholders: `{{TOPIC}}`, `{{DATE}}`, `{{LEVEL}}`
 - **`references/teaching-strategies.md`** — Detailed teaching strategy guidance: question escalation, hint levels, misconception handling, difficulty calibration, strategy transition signals
 - **`references/sm2-algorithm.md`** — Spaced repetition algorithm details, parameters, worked examples, and script integration guide
 
@@ -22,7 +24,7 @@ When the user wants to learn something new:
 1. Ask for the **topic** and **current level** (beginner / intermediate / advanced / unknown)
 2. Determine the **vault location** — use current working directory or ask the user
 3. Run `scripts/init-vault.sh` to create the vault structure with templates
-4. Read `_meta/progress.md` — if prior progress exists, resume; otherwise generate the knowledge map and begin
+4. Read `_meta/state.json` and `_meta/progress.md` — if prior progress exists, resume; otherwise generate the knowledge map and begin
 5. Populate `_meta/knowledge-map.md` with the full topic outline
 
 If resuming: briefly summarize what was covered and what's next.
@@ -36,7 +38,8 @@ Created by `scripts/init-vault.sh`:
 ├── _meta/
 │   ├── progress.md          # Learning state and session history
 │   ├── knowledge-map.md     # Full topic outline with mastery status
-│   └── spaced-repetition.md # Review schedule and due items
+│   ├── spaced-repetition.md # Rendered review schedule and due items
+│   └── state.json           # Machine-readable source of truth
 ├── notes/                   # Per-concept notes (numbered, kebab-case)
 ├── exercises/               # Practice problems per concept
 ├── summaries/               # Learner-written summaries
@@ -50,7 +53,7 @@ Created by `scripts/init-vault.sh`:
 3. **Teach new material** — Select strategy based on content type (see below)
 4. **Verify mastery** — Test understanding before marking complete
 5. **Active output** — Ask learner to write summaries, create exercises, or apply knowledge
-6. **Update files** — Update progress, knowledge map, spaced repetition, and notes
+6. **Persist session** — Run `scripts/session-commit.py` with a JSON payload to update progress, knowledge map, spaced repetition, notes, and `_meta/state.json`
 7. **Preview next session** — Tell the learner what's coming next
 
 ## Teaching Strategy Selection
@@ -88,6 +91,7 @@ When mastered:
 - Update `_meta/knowledge-map.md` (`- [ ]` to `- [x]`)
 - Add entry to `_meta/spaced-repetition.md`
 - Update `_meta/progress.md`
+- Sync `_meta/state.json`
 - Create/update note in `notes/` with this structure:
 
 ```markdown
@@ -115,7 +119,7 @@ Use `[[wikilinks]]` for Obsidian linking.
 
 ## Spaced Repetition
 
-Uses simplified SM-2 algorithm. For full details and worked examples, see `references/sm2-algorithm.md`.
+Uses simplified SM-2 algorithm. `_meta/state.json` is the source of truth; `_meta/spaced-repetition.md` is generated from it. For full details and worked examples, see `references/sm2-algorithm.md`.
 
 Quick reference:
 - Correct: interval grows (1 → 3 → interval * ease)
@@ -130,6 +134,15 @@ python3 scripts/review-check.py _meta/spaced-repetition.md
 
 # Update after review
 python3 scripts/review-check.py _meta/spaced-repetition.md --update --results '{"concept": true}'
+
+# Rebuild spaced-repetition.md from state.json
+python3 scripts/review-check.py _meta/spaced-repetition.md --sync
+```
+
+Use `scripts/session-commit.py` to persist session output:
+```bash
+python3 scripts/session-commit.py /path/to/topic \
+  --payload '{"module":"Module 1","concept":"Recursion","session_summary":"Covered base cases.","mastered_concepts":[{"name":"Recursion","core_idea":"A function can solve a problem by reducing it to smaller instances.","key_points":["Needs a base case","Each step reduces the problem"],"examples":["Factorial recursion"],"related":["Iteration"],"prerequisite_for":["Tree traversal"]}],"next_session":"Practice recursive tracing."}'
 ```
 
 ## Active Output Prompts
