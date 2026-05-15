@@ -60,8 +60,20 @@ def state_path_for_topic(topic_dir: str | Path) -> Path:
     return Path(topic_dir) / "_meta" / "state.json"
 
 
+def state_lite_path_for_topic(topic_dir: str | Path) -> Path:
+    return Path(topic_dir) / "_meta" / "state-lite.json"
+
+
 def progress_path_for_topic(topic_dir: str | Path) -> Path:
     return Path(topic_dir) / "_meta" / "progress.md"
+
+
+def current_path_for_topic(topic_dir: str | Path) -> Path:
+    return Path(topic_dir) / "_meta" / "current.md"
+
+
+def sessions_dir_for_topic(topic_dir: str | Path) -> Path:
+    return Path(topic_dir) / "_meta" / "sessions"
 
 
 def knowledge_map_path_for_topic(topic_dir: str | Path) -> Path:
@@ -269,6 +281,99 @@ def slugify_note_name(value: str) -> str:
     sanitized = re.sub(r"[^\w\-\u4e00-\u9fff]+", "-", sanitized, flags=re.UNICODE)
     sanitized = re.sub(r"-{2,}", "-", sanitized).strip("-")
     return sanitized or "concept-note"
+
+
+def render_current_markdown(state: dict) -> str:
+    sessions = state.get("sessions", [])
+    last_session = sessions[-1] if sessions else {}
+    last_date = last_session.get("date", state.get("created_at", iso_today()))
+    next_action = last_session.get("next_session", "")
+    mastered = [
+        name
+        for name, concept in sorted(state.get("concepts", {}).items(), key=lambda pair: pair[0].casefold())
+        if concept.get("status") == "mastered"
+    ]
+    due_reviews = state.get("reviews", {}).get("due", [])
+
+    lines = [
+        f"# Current Learning State: {state.get('topic', 'Untitled Topic')}",
+        "",
+        "## Now",
+        f"- Topic: {state.get('topic', 'Untitled Topic')}",
+        f"- Module: {state.get('current', {}).get('module', 'Module 1')}",
+        f"- Current concept: {state.get('current', {}).get('concept', '1.1')}",
+        f"- Last session: {last_date}",
+        f"- Learner level: {state.get('learner', {}).get('level', 'unknown')}",
+    ]
+    if next_action:
+        lines.append(f"- Next action: {next_action}")
+
+    lines.extend(["", "## Mastered"])
+    if mastered:
+        lines.extend(f"- {item}" for item in mastered[-10:])
+    else:
+        lines.append("- None yet")
+
+    lines.extend(["", "## Due Review"])
+    if due_reviews:
+        for item in due_reviews[:10]:
+            lines.append(f"- {item['concept']} (due: {item['next_review']})")
+    else:
+        lines.append("- None")
+
+    lines.extend(["", "## Read Next"])
+    detail_path = last_session.get("detail_path")
+    if detail_path:
+        lines.append(f"- {detail_path}")
+    lines.extend(
+        [
+            "- _meta/knowledge-map.md",
+            "- _meta/spaced-repetition.md",
+        ]
+    )
+
+    lines.extend(
+        [
+            "",
+            "## Resume Rule",
+            "- Start here before reading the long progress log.",
+            "- Read _meta/progress.md only when historical detail is requested.",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def render_state_lite(state: dict) -> dict:
+    concepts = state.get("concepts", {})
+    mastered = [
+        name
+        for name, concept in sorted(concepts.items(), key=lambda pair: pair[0].casefold())
+        if concept.get("status") == "mastered"
+    ]
+    learning = [
+        name
+        for name, concept in sorted(concepts.items(), key=lambda pair: pair[0].casefold())
+        if concept.get("status") != "mastered"
+    ]
+    sessions = state.get("sessions", [])
+    last_session = sessions[-1] if sessions else {}
+    return {
+        "version": state.get("version", 2),
+        "topic": state.get("topic", "Untitled Topic"),
+        "updated_at": state.get("updated_at", iso_today()),
+        "learner": state.get("learner", {}),
+        "current": state.get("current", {}),
+        "mastered_concepts": mastered,
+        "learning_concepts": learning,
+        "reviews": state.get("reviews", {"due": [], "mastered": []}),
+        "session_count": len(sessions),
+        "last_session": {
+            "date": last_session.get("date", state.get("created_at", iso_today())),
+            "summary": last_session.get("summary", ""),
+            "next_session": last_session.get("next_session", ""),
+            "detail_path": last_session.get("detail_path", ""),
+        },
+    }
 
 
 def render_spaced_repetition_markdown(state: dict) -> str:

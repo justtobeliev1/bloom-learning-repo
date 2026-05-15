@@ -48,11 +48,22 @@ fi
 TOPIC_DIR="${VAULT_PATH}/${TOPIC}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="${SCRIPT_DIR}/../assets/templates"
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [ -z "$PYTHON_BIN" ]; then
+    if command -v python >/dev/null 2>&1 && python --version >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    elif command -v python3 >/dev/null 2>&1 && python3 --version >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    else
+        echo "Error: python is required to render templates." >&2
+        exit 1
+    fi
+fi
 
 render_template() {
     local template_path="$1"
     local output_path="$2"
-    TOPIC_VALUE="$TOPIC" LEVEL_VALUE="$LEVEL" DATE_VALUE="$DATE" python3 - "$template_path" "$output_path" <<'PY'
+    TOPIC_VALUE="$TOPIC" LEVEL_VALUE="$LEVEL" DATE_VALUE="$DATE" "$PYTHON_BIN" - "$template_path" "$output_path" <<'PY'
 import os
 import sys
 from pathlib import Path
@@ -72,13 +83,19 @@ PY
 }
 
 bootstrap_missing_state() {
-    if [ -f "${TOPIC_DIR}/_meta/state.json" ]; then
-        return
-    fi
-
-    if [ -f "${TEMPLATE_DIR}/state.json" ]; then
+    if [ ! -f "${TOPIC_DIR}/_meta/state.json" ] && [ -f "${TEMPLATE_DIR}/state.json" ]; then
         render_template "${TEMPLATE_DIR}/state.json" "${TOPIC_DIR}/_meta/state.json"
     fi
+
+    if [ ! -f "${TOPIC_DIR}/_meta/state-lite.json" ] && [ -f "${TEMPLATE_DIR}/state-lite.json" ]; then
+        render_template "${TEMPLATE_DIR}/state-lite.json" "${TOPIC_DIR}/_meta/state-lite.json"
+    fi
+
+    if [ ! -f "${TOPIC_DIR}/_meta/current.md" ] && [ -f "${TEMPLATE_DIR}/current.md" ]; then
+        render_template "${TEMPLATE_DIR}/current.md" "${TOPIC_DIR}/_meta/current.md"
+    fi
+
+    mkdir -p "${TOPIC_DIR}/_meta/sessions"
 }
 
 if [ -d "$TOPIC_DIR" ] && [ -f "${TOPIC_DIR}/_meta/progress.md" ]; then
@@ -94,19 +111,23 @@ if [ -d "$TOPIC_DIR" ] && [ -f "${TOPIC_DIR}/_meta/progress.md" ]; then
 fi
 
 echo "Creating vault structure for: ${TOPIC}"
-mkdir -p "${TOPIC_DIR}/_meta" "${TOPIC_DIR}/notes" "${TOPIC_DIR}/exercises" "${TOPIC_DIR}/summaries" "${TOPIC_DIR}/projects"
+mkdir -p "${TOPIC_DIR}/_meta/sessions" "${TOPIC_DIR}/notes" "${TOPIC_DIR}/exercises" "${TOPIC_DIR}/summaries" "${TOPIC_DIR}/projects"
 
 if [ -d "$TEMPLATE_DIR" ]; then
+    render_template "${TEMPLATE_DIR}/current.md" "${TOPIC_DIR}/_meta/current.md"
     render_template "${TEMPLATE_DIR}/progress.md" "${TOPIC_DIR}/_meta/progress.md"
     render_template "${TEMPLATE_DIR}/knowledge-map.md" "${TOPIC_DIR}/_meta/knowledge-map.md"
     render_template "${TEMPLATE_DIR}/spaced-repetition.md" "${TOPIC_DIR}/_meta/spaced-repetition.md"
     render_template "${TEMPLATE_DIR}/state.json" "${TOPIC_DIR}/_meta/state.json"
+    render_template "${TEMPLATE_DIR}/state-lite.json" "${TOPIC_DIR}/_meta/state-lite.json"
 else
     echo "Warning: Template directory not found at ${TEMPLATE_DIR}"
     echo "Creating minimal placeholder files..."
+    echo "# Current Learning State: ${TOPIC}" > "${TOPIC_DIR}/_meta/current.md"
     echo "# Learning Progress: ${TOPIC}" > "${TOPIC_DIR}/_meta/progress.md"
     echo "# Knowledge Map: ${TOPIC}" > "${TOPIC_DIR}/_meta/knowledge-map.md"
     echo "# Spaced Repetition Schedule" > "${TOPIC_DIR}/_meta/spaced-repetition.md"
+    echo '{"topic": "'"${TOPIC}"'", "updated_at": "'"${DATE}"'", "current": {"module": "Module 1", "concept": "1.1"}}' > "${TOPIC_DIR}/_meta/state-lite.json"
     cat > "${TOPIC_DIR}/_meta/state.json" <<EOF
 {"topic": "${TOPIC}", "created_at": "${DATE}", "learner": {"level": "${LEVEL}"}}
 EOF
@@ -116,10 +137,13 @@ echo ""
 echo "Vault initialized successfully:"
 echo "  ${TOPIC_DIR}/"
 echo "  ├── _meta/"
+echo "  │   ├── current.md"
 echo "  │   ├── progress.md"
 echo "  │   ├── knowledge-map.md"
 echo "  │   ├── spaced-repetition.md"
-echo "  │   └── state.json"
+echo "  │   ├── state-lite.json"
+echo "  │   ├── state.json"
+echo "  │   └── sessions/"
 echo "  ├── notes/"
 echo "  ├── exercises/"
 echo "  ├── summaries/"

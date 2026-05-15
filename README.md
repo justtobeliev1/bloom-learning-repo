@@ -50,8 +50,10 @@ bash bloom-learning/scripts/init-vault.sh "/你的/Obsidian笔记库" "Python �
 Python 装饰器/
 ├── _meta/
 │   ├── progress.md          # 学习进度和会话历史
+│   ├── current.md           # 短恢复入口，下次先读这里减少上下文
 │   ├── knowledge-map.md     # 知识地图（带 ✅ 掌握状态）
 │   ├── spaced-repetition.md # 间隔复习计划
+│   ├── state-lite.json      # 精简机器可读状态
 │   └── state.json           # 机器可读的状态源
 ├── notes/                   # 每个知识点的笔记
 ├── exercises/               # 练习题
@@ -71,8 +73,10 @@ python3 bloom-learning/scripts/review-check.py "/你的/笔记库/Python 装饰�
 
 ```bash
 python3 bloom-learning/scripts/session-commit.py "/你的/笔记库/Python 装饰器" \
-  --payload '{"module":"Module 1","concept":"闭包","session_summary":"理解了闭包的作用域链", ...}'
+  --payload-file payload.json
 ```
+
+`payload.json` 请保存为 UTF-8。对于中文等非 ASCII 内容，推荐使用 `--payload-file` 或 `--payload-stdin`，避免 PowerShell/cmd 参数编码把中文替换成 `?`。
 
 > 💡 **提示**：在支持 Skills 的 AI 环境中使用时，这些脚本会被自动调用，你不需要手动操作。
 

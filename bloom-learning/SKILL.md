@@ -11,9 +11,9 @@ Personalized AI tutoring system combining Bloom's 2 Sigma one-on-one tutoring wi
 
 - **`scripts/init-vault.sh`** — Initialize vault structure for a new topic. Run: `bash scripts/init-vault.sh <vault-path> <topic> [level]`
 - **`scripts/review-check.py`** — Check due spaced repetition items, update intervals, and sync `_meta/state.json`. Run: `python3 scripts/review-check.py <path-to-spaced-repetition.md>`
-- **`scripts/session-commit.py`** — Persist a session across `progress.md`, `knowledge-map.md`, `spaced-repetition.md`, `notes/`, and `_meta/state.json`
+- **`scripts/session-commit.py`** - Persist a session across `current.md`, `state-lite.json`, `progress.md`, `knowledge-map.md`, `spaced-repetition.md`, `notes/`, `_meta/sessions/`, and `_meta/state.json`
 - **`scripts/learning_state.py`** — Shared state helpers used by the review and session scripts
-- **`assets/templates/`** — Template files (progress.md, knowledge-map.md, spaced-repetition.md, state.json) used by init-vault.sh. Placeholders: `{{TOPIC}}`, `{{DATE}}`, `{{LEVEL}}`
+- **`assets/templates/`** - Template files (current.md, state-lite.json, progress.md, knowledge-map.md, spaced-repetition.md, state.json) used by init-vault.sh. Placeholders: `{{TOPIC}}`, `{{DATE}}`, `{{LEVEL}}`
 - **`references/teaching-strategies.md`** — Detailed teaching strategy guidance: question escalation, hint levels, misconception handling, difficulty calibration, strategy transition signals
 - **`references/sm2-algorithm.md`** — Spaced repetition algorithm details, parameters, worked examples, and script integration guide
 
@@ -24,22 +24,37 @@ When the user wants to learn something new:
 1. Ask for the **topic** and **current level** (beginner / intermediate / advanced / unknown)
 2. Determine the **vault location** — use current working directory or ask the user
 3. Run `scripts/init-vault.sh` to create the vault structure with templates
-4. Read `_meta/state.json` and `_meta/progress.md` — if prior progress exists, resume; otherwise generate the knowledge map and begin
+4. Read `_meta/current.md` first if it exists; read `_meta/state-lite.json` for structured state. Read `_meta/state.json` or `_meta/progress.md` only when historical detail is requested.
 5. Populate `_meta/knowledge-map.md` with the full topic outline
 
 If resuming: briefly summarize what was covered and what's next.
+
+## Context-Efficient Resume
+
+When resuming an existing vault:
+
+1. Read `_meta/current.md` first if it exists.
+2. Read `_meta/state-lite.json` for structured fields: `current`, `learner`, `reviews`, concept mastery, session count, and last-session summary.
+3. Do not read full `_meta/state.json` or `_meta/progress.md` by default.
+4. Read `_meta/state.json`, `_meta/progress.md`, or `_meta/sessions/` only when the learner asks for historical detail, a specific prior session, or a broad retrospective.
+5. For current work, read only files listed in `_meta/current.md` under `Read Next`, plus files directly needed for the task.
 
 ## Vault Structure
 
 Created by `scripts/init-vault.sh`:
 
+Context-efficient vaults also include `_meta/current.md` as the short resume entrypoint and `_meta/sessions/` for per-session detail logs. Treat `_meta/progress.md` as a historical archive, not the default resume file.
+
 ```
 {topic}/
 ├── _meta/
 │   ├── progress.md          # Learning state and session history
+│   ├── current.md           # Short resume entrypoint; read this first
 │   ├── knowledge-map.md     # Full topic outline with mastery status
 │   ├── spaced-repetition.md # Rendered review schedule and due items
-│   └── state.json           # Machine-readable source of truth
+│   ├── state-lite.json      # Short machine-readable resume state
+│   ├── state.json           # Machine-readable source of truth
+│   └── sessions/            # Per-session detail logs
 ├── notes/                   # Per-concept notes (numbered, kebab-case)
 ├── exercises/               # Practice problems per concept
 ├── summaries/               # Learner-written summaries
@@ -48,13 +63,32 @@ Created by `scripts/init-vault.sh`:
 
 ## Session Flow
 
-1. **Resume context** — Read `_meta/progress.md`, greet the learner, summarize position
+1. **Resume context** - Read `_meta/current.md` first; use `_meta/state-lite.json` for structured details; greet the learner and summarize position
 2. **Review due items** — Run `python3 scripts/review-check.py _meta/spaced-repetition.md` to find items due. If any, do a quick review (2-3 questions) first
 3. **Teach new material** — Select strategy based on content type (see below)
 4. **Verify mastery** — Test understanding before marking complete
 5. **Active output** — Ask learner to write summaries, create exercises, or apply knowledge
-6. **Persist session** — Run `scripts/session-commit.py` with a JSON payload to update progress, knowledge map, spaced repetition, notes, and `_meta/state.json`
+6. **Persist session** - Run `scripts/session-commit.py` with a UTF-8 payload file or stdin to update current state, state-lite, progress, knowledge map, spaced repetition, notes, session details, and `_meta/state.json`
 7. **Preview next session** — Tell the learner what's coming next
+
+## Encoding Safety
+
+When persisting Chinese or other non-ASCII learning content, preserve UTF-8 end to end. Do not pass non-ASCII JSON payloads through PowerShell/cmd shell arguments; use `--payload-file` or `--payload-stdin`. The script rejects non-ASCII text passed via `--payload` and scans written files for likely encoding damage markers such as `???`, `�`, `锛`, and `瀛`. After writing state files, still verify a small sample from `_meta/current.md`, `_meta/state-lite.json`, `_meta/progress.md`, and the new session file to confirm readable text before ending the turn.
+
+Recommended pattern:
+
+```bash
+python scripts/session-commit.py <topic-path> --payload-file payload.json
+```
+
+For ad hoc Python wrappers, write the payload as UTF-8 first:
+
+```python
+from pathlib import Path
+import json
+
+Path("payload.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+```
 
 ## Teaching Strategy Selection
 
@@ -139,10 +173,9 @@ python3 scripts/review-check.py _meta/spaced-repetition.md --update --results '{
 python3 scripts/review-check.py _meta/spaced-repetition.md --sync
 ```
 
-Use `scripts/session-commit.py` to persist session output:
+- **`scripts/session-commit.py`** - Persist a session across `current.md`, `state-lite.json`, `progress.md`, `knowledge-map.md`, `spaced-repetition.md`, `notes/`, `_meta/sessions/`, and `_meta/state.json`
 ```bash
-python3 scripts/session-commit.py /path/to/topic \
-  --payload '{"module":"Module 1","concept":"Recursion","session_summary":"Covered base cases.","mastered_concepts":[{"name":"Recursion","core_idea":"A function can solve a problem by reducing it to smaller instances.","key_points":["Needs a base case","Each step reduces the problem"],"examples":["Factorial recursion"],"related":["Iteration"],"prerequisite_for":["Tree traversal"]}],"next_session":"Practice recursive tracing."}'
+python3 scripts/session-commit.py <topic-path> --payload-file payload.json
 ```
 
 ## Active Output Prompts
