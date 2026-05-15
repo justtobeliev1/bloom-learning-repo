@@ -16,28 +16,21 @@ from learning_state import (
     MASTERY_SNAPSHOT_START,
     SESSION_LOG_END,
     SESSION_LOG_START,
-    current_path_for_topic,
     ensure_review_entry,
     iso_today,
     knowledge_map_path_for_topic,
     load_state,
     progress_path_for_topic,
-    render_current_markdown,
     render_mastery_snapshot,
     render_progress_current_state,
     render_session_log,
-    render_state_lite,
     replace_marked_section,
-    save_state,
-    save_json,
-    state_lite_path_for_topic,
     sessions_dir_for_topic,
     slugify_note_name,
     sync_spaced_repetition,
     upsert_concept,
+    write_resume_state,
 )
-
-ENCODING_DAMAGE_MARKERS = ("???", "\ufffd", "鈥", "锛", "妯", "瀛", "杩")
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,13 +55,6 @@ def contains_non_ascii(text: str) -> bool:
     return any(ord(char) > 127 for char in text)
 
 
-def find_encoding_damage(text: str) -> str | None:
-    for marker in ENCODING_DAMAGE_MARKERS:
-        if marker in text:
-            return marker
-    return None
-
-
 def read_payload_text(args: argparse.Namespace) -> str:
     if args.payload is not None:
         if contains_non_ascii(args.payload):
@@ -83,6 +69,9 @@ def read_payload_text(args: argparse.Namespace) -> str:
     if args.payload_file:
         try:
             return Path(args.payload_file).read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            print(f"Error: payload file is not valid UTF-8: {exc}", file=sys.stderr)
+            sys.exit(1)
         except OSError as exc:
             print(f"Error: cannot read payload file: {exc}", file=sys.stderr)
             sys.exit(1)
@@ -91,15 +80,6 @@ def read_payload_text(args: argparse.Namespace) -> str:
 
 
 def load_payload(raw_payload: str) -> dict:
-    damage_marker = find_encoding_damage(raw_payload)
-    if damage_marker:
-        print(
-            f"Error: payload contains possible encoding damage marker {damage_marker!r}. "
-            "Fix the UTF-8 input before committing the session.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     try:
         payload = json.loads(raw_payload)
     except json.JSONDecodeError as exc:
@@ -257,38 +237,7 @@ def write_session_detail(topic_dir: Path, session_entry: dict) -> str:
 
 
 def update_current(topic_dir: Path, state: dict) -> None:
-    current_path_for_topic(topic_dir).write_text(render_current_markdown(state), encoding="utf-8")
-    save_json(state_lite_path_for_topic(topic_dir), render_state_lite(state))
-
-
-def validate_written_files(topic_dir: Path, state: dict, session_detail_path: str) -> None:
-    paths = [
-        current_path_for_topic(topic_dir),
-        state_lite_path_for_topic(topic_dir),
-        progress_path_for_topic(topic_dir),
-        knowledge_map_path_for_topic(topic_dir),
-        topic_dir / "_meta" / "spaced-repetition.md",
-        topic_dir / "_meta" / "state.json",
-        topic_dir / session_detail_path,
-    ]
-
-    for concept in state.get("concepts", {}).values():
-        note_path = concept.get("note_path")
-        if note_path:
-            paths.append(topic_dir / note_path)
-
-    for path in paths:
-        if not path.exists():
-            continue
-        text = path.read_text(encoding="utf-8")
-        marker = find_encoding_damage(text)
-        if marker:
-            print(
-                f"Error: possible encoding damage marker {marker!r} found in {path}. "
-                "Review the file before continuing.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+    write_resume_state(topic_dir, state)
 
 
 def main() -> None:
@@ -354,12 +303,10 @@ def main() -> None:
     session_entry["detail_path"] = write_session_detail(topic_dir, session_entry)
     state.setdefault("sessions", []).append(session_entry)
 
-    save_state(topic_dir, state)
+    sync_spaced_repetition(topic_dir, state)
     update_current(topic_dir, state)
     update_progress(topic_dir, state)
     update_knowledge_map(topic_dir, state, mastered_names)
-    sync_spaced_repetition(topic_dir, state)
-    validate_written_files(topic_dir, state, session_entry["detail_path"])
 
     print("Session committed successfully.")
 

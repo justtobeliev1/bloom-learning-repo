@@ -125,7 +125,8 @@ def load_state(topic_dir: str | Path) -> dict:
 
     topic_dir = Path(topic_dir)
     review_path = review_path_for_topic(topic_dir)
-    if review_path.exists():
+    progress_path = progress_path_for_topic(topic_dir)
+    if review_path.exists() or progress_path.exists():
         state = bootstrap_state_from_markdown(topic_dir)
         save_state(topic_dir, state)
         return state
@@ -136,6 +137,12 @@ def load_state(topic_dir: str | Path) -> dict:
 def save_state(topic_dir: str | Path, state: dict) -> None:
     state["updated_at"] = iso_today()
     save_json(state_path_for_topic(topic_dir), ensure_state_shape(state))
+
+
+def write_resume_state(topic_dir: str | Path, state: dict) -> None:
+    topic_dir = Path(topic_dir)
+    current_path_for_topic(topic_dir).write_text(render_current_markdown(state), encoding="utf-8")
+    save_json(state_lite_path_for_topic(topic_dir), render_state_lite(state))
 
 
 def normalize_review_item(item: dict) -> dict:

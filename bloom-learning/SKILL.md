@@ -73,7 +73,7 @@ Context-efficient vaults also include `_meta/current.md` as the short resume ent
 
 ## Encoding Safety
 
-When persisting Chinese or other non-ASCII learning content, preserve UTF-8 end to end. Do not pass non-ASCII JSON payloads through PowerShell/cmd shell arguments; use `--payload-file` or `--payload-stdin`. The script rejects non-ASCII text passed via `--payload` and scans written files for likely encoding damage markers such as `???`, `�`, `锛`, and `瀛`. After writing state files, still verify a small sample from `_meta/current.md`, `_meta/state-lite.json`, `_meta/progress.md`, and the new session file to confirm readable text before ending the turn.
+When persisting Chinese or other non-ASCII learning content, preserve UTF-8 end to end. Do not pass non-ASCII JSON payloads through PowerShell/cmd shell arguments; use `--payload-file` or `--payload-stdin`. The script rejects non-ASCII text passed via `--payload`, reads payload files as strict UTF-8, and writes Markdown/JSON as UTF-8. It does not guess whether user content "looks garbled"; reliability comes from avoiding the risky argv path. After writing state files, still verify a small sample from `_meta/current.md`, `_meta/state-lite.json`, `_meta/progress.md`, and the new session file to confirm readable text before ending the turn.
 
 Recommended pattern:
 

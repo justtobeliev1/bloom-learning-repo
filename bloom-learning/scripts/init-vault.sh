@@ -83,19 +83,8 @@ PY
 }
 
 bootstrap_missing_state() {
-    if [ ! -f "${TOPIC_DIR}/_meta/state.json" ] && [ -f "${TEMPLATE_DIR}/state.json" ]; then
-        render_template "${TEMPLATE_DIR}/state.json" "${TOPIC_DIR}/_meta/state.json"
-    fi
-
-    if [ ! -f "${TOPIC_DIR}/_meta/state-lite.json" ] && [ -f "${TEMPLATE_DIR}/state-lite.json" ]; then
-        render_template "${TEMPLATE_DIR}/state-lite.json" "${TOPIC_DIR}/_meta/state-lite.json"
-    fi
-
-    if [ ! -f "${TOPIC_DIR}/_meta/current.md" ] && [ -f "${TEMPLATE_DIR}/current.md" ]; then
-        render_template "${TEMPLATE_DIR}/current.md" "${TOPIC_DIR}/_meta/current.md"
-    fi
-
     mkdir -p "${TOPIC_DIR}/_meta/sessions"
+    "$PYTHON_BIN" "${SCRIPT_DIR}/sync-resume-state.py" "${TOPIC_DIR}"
 }
 
 if [ -d "$TOPIC_DIR" ] && [ -f "${TOPIC_DIR}/_meta/progress.md" ]; then
